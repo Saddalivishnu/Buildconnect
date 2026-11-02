@@ -2,6 +2,74 @@ from datetime import date, datetime
 from typing import Dict, Any, List, Optional, Tuple
 import numpy as np
 
+HEURISTIC_STRATEGIES = ("cheapest", "lowest_risk", "fastest", "weighted_risk_cost")
+
+
+def add_pareto_comparison(results: Dict[str, Any]) -> None:
+    """Compare the four heuristic plans; this is not an NSGA-II search."""
+    def objectives(plan):
+        risk = plan["expected_late_delivery_risk"]
+        delivery = plan.get("estimated_delivery_days", plan.get("expected_delivery_days"))
+        return (
+            plan["total_estimated_cost"],
+            1.0 if risk is None else risk,
+            float("inf") if delivery is None else delivery,
+            plan["shortage_quantity"],
+        )
+
+    points = []
+    front = []
+    for strategy in HEURISTIC_STRATEGIES:
+        plan = results[strategy]
+        point = {
+            "strategy": strategy,
+            "total_estimated_cost": plan["total_estimated_cost"],
+            "expected_late_delivery_risk": plan["expected_late_delivery_risk"],
+            "estimated_delivery_days": plan.get("estimated_delivery_days", plan.get("expected_delivery_days")),
+            "shortage_quantity": plan["shortage_quantity"],
+            "feasible": plan["feasible"],
+        }
+        point["expected_delivery_days"] = point["estimated_delivery_days"]
+        points.append(point)
+        values = objectives(plan)
+        dominated = any(
+            all(other <= value for other, value in zip(objectives(results[candidate]), values))
+            and any(other < value for other, value in zip(objectives(results[candidate]), values))
+            for candidate in HEURISTIC_STRATEGIES
+            if candidate != strategy
+        )
+        if not dominated:
+            front.append(point)
+
+    note = (
+        "Pareto comparison of four heuristic allocation plans, not an NSGA-II search or a global optimum. "
+        "The default allocation is the balanced risk/cost plan; review the nondominated alternatives before approval. "
+        "For comparison only, unknown risk is treated as 1.0 and unknown delivery time as unbounded; "
+        "reported missing values remain null."
+    )
+    comparison = dict(results["weighted_risk_cost"])
+    comparison.update({
+        "strategy": "pareto_comparison",
+        "method": "heuristic_pareto_comparison",
+        "allocation_strategy": "weighted_risk_cost",
+        "pareto_front_solutions": front,
+        "pareto_synthesis": {
+            "candidate_strategies": list(HEURISTIC_STRATEGIES),
+            "tradeoff_points": points,
+            "nondominated_strategies": [point["strategy"] for point in front],
+            "objective_note": note,
+        },
+        "note": note,
+    })
+    results["pareto_comparison"] = comparison
+    # Existing saved plans and API clients can continue using the old identifier.
+    results["nsga_ii"] = {
+        **comparison,
+        "strategy": "nsga_ii",
+        "deprecated_alias_for": "pareto_comparison",
+    }
+
+
 def calculate_supplier_late_prob(conn, supplier_id: int, demo_score: Optional[float] = None) -> Tuple[Optional[float], str]:
     """Calculate empirical late rate or return demo benchmark."""
     row = conn.execute(
@@ -26,12 +94,12 @@ def solve_procurement_plans(
     shortage_penalty: float = 1500.0,
 ) -> Tuple[Optional[Dict[str, Any]], Optional[Tuple[Dict[str, Any], int]]]:
     """
-    Computes procurement alternatives across 5 strategies:
+    Computes four heuristic procurement alternatives and their Pareto comparison:
     1. cheapest
     2. lowest_risk
     3. fastest
     4. weighted_risk_cost
-    5. nsga_ii (Pareto multi-objective)
+    5. pareto_comparison (nsga_ii is a legacy compatibility alias)
     """
     material_rows = conn.execute(
         "SELECT * FROM project_materials WHERE project_id = ? ORDER BY id",
@@ -193,49 +261,9 @@ def solve_procurement_plans(
         }
 
     results: Dict[str, Any] = {}
-    for strat in ("cheapest", "lowest_risk", "fastest", "weighted_risk_cost"):
+    for strat in HEURISTIC_STRATEGIES:
         results[strat] = evaluate_strategy_allocation(strat)
 
-    # 5. NSGA-II Multi-Objective Pareto Front Synthesis
-    # Evaluates non-dominated trade-offs between cost, delivery risk, and delivery speed
-    pareto_plans = [results["cheapest"], results["lowest_risk"], results["fastest"], results["weighted_risk_cost"]]
-    # Identify non-dominated solutions
-    non_dominated = []
-    for p in pareto_plans:
-        is_dominated = False
-        for other in pareto_plans:
-            if other == p:
-                continue
-            # Dominated if other is strictly better or equal in cost, risk, delivery days, and strictly better in at least one
-            c_better = other["total_estimated_cost"] <= p["total_estimated_cost"]
-            r_better = (other["expected_late_delivery_risk"] or 1.0) <= (p["expected_late_delivery_risk"] or 1.0)
-            d_better = (other["expected_delivery_days"] or 999) <= (p["expected_delivery_days"] or 999)
-            s_better = other["shortage_quantity"] <= p["shortage_quantity"]
-            strictly_better = (
-                other["total_estimated_cost"] < p["total_estimated_cost"] or
-                (other["expected_late_delivery_risk"] or 1.0) < (p["expected_late_delivery_risk"] or 1.0) or
-                (other["expected_delivery_days"] or 999) < (p["expected_delivery_days"] or 999) or
-                other["shortage_quantity"] < p["shortage_quantity"]
-            )
-            if c_better and r_better and d_better and s_better and strictly_better:
-                is_dominated = True
-                break
-        if not is_dominated and p not in non_dominated:
-            non_dominated.append(p)
-
-    nsga_best = dict(results["weighted_risk_cost"])
-    nsga_best["strategy"] = "nsga_ii"
-    nsga_best["pareto_front_solutions"] = [
-        {
-            "strategy": p["strategy"],
-            "total_estimated_cost": p["total_estimated_cost"],
-            "expected_late_delivery_risk": p["expected_late_delivery_risk"],
-            "expected_delivery_days": p["expected_delivery_days"],
-            "shortage_quantity": p["shortage_quantity"],
-        }
-        for p in non_dominated
-    ]
-    nsga_best["note"] = "Pareto front synthesis balancing cost, delivery risk, and lead time without false superiority claims."
-    results["nsga_ii"] = nsga_best
+    add_pareto_comparison(results)
 
     return results, None

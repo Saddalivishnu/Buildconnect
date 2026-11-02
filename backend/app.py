@@ -26,7 +26,7 @@ from database import (
 from services.provenance import DataProvenance, PROVENANCE_DESCRIPTIONS, tag_provenance
 from services.supplier_features import extract_leakage_safe_supplier_features, compute_bayesian_rating
 from services.supplier_ranking import rank_supplier_quotations
-from services.procurement_optimizer import solve_procurement_plans
+from services.procurement_optimizer import add_pareto_comparison, solve_procurement_plans
 from services.evaluation import (
     evaluate_forecast_accuracy, evaluate_supplier_risk_model, evaluate_procurement_outcomes
 )
@@ -1898,10 +1898,17 @@ def optimize_procurement():
             "shortage_penalty_per_unit": shortage_penalty,
             "note": "Both transport and shortage penalty values are user-configurable assumptions, not sourced tariffs.",
         },
-        "nsga_ii": {
+        "alternatives": alternatives,
+        "pareto_comparison": {
             "available": True,
-            "reason": "Pareto multi-objective synthesis balancing total material cost, delivery risk, and promised lead time.",
-            "pareto_front": alternatives.get("nsga_ii", {}).get("pareto_synthesis", {}),
+            "reason": alternatives["pareto_comparison"]["note"],
+            "pareto_front": alternatives["pareto_comparison"]["pareto_synthesis"],
+        },
+        "nsga_ii": {
+            "available": False,
+            "reason": "NSGA-II search is not implemented; nsga_ii remains a legacy alias for the heuristic Pareto comparison.",
+            "deprecated_alias_for": "pareto_comparison",
+            "pareto_front": alternatives["pareto_comparison"]["pareto_synthesis"],
         },
     })
 
@@ -2050,6 +2057,7 @@ def build_procurement_alternatives(
             "expected_late_delivery_risk": weighted_risk / risk_known_quantity if risk_known_quantity else None,
             "risk_evidence_quantity": risk_known_quantity,
             "estimated_delivery_days": estimated_days if allocations else None,
+            "expected_delivery_days": estimated_days if allocations else None,
             "shortage_quantity": shortage_total,
             "shortage_penalty_assumption": shortage_penalty,
             "shortage_penalty_estimate": shortage_total * shortage_penalty,
@@ -2060,25 +2068,7 @@ def build_procurement_alternatives(
             "feasible": shortage_total <= 1e-9,
         }
 
-    # Strategy 5: NSGA-II Multi-objective Pareto synthesis
-    nsga_best = dict(results["weighted_risk_cost"])
-    nsga_best["strategy"] = "nsga_ii"
-    nsga_best["pareto_synthesis"] = {
-        "candidate_strategies": ["cheapest", "lowest_risk", "fastest", "weighted_risk_cost"],
-        "tradeoff_points": [
-            {
-                "strategy": s,
-                "total_estimated_cost": results[s]["total_estimated_cost"],
-                "expected_late_delivery_risk": results[s]["expected_late_delivery_risk"],
-                "estimated_delivery_days": results[s]["estimated_delivery_days"],
-                "shortage_quantity": results[s]["shortage_quantity"],
-                "feasible": results[s]["feasible"],
-            }
-            for s in ("cheapest", "lowest_risk", "fastest", "weighted_risk_cost")
-        ],
-        "objective_note": "Non-dominated multi-objective compromise without claiming artificial superiority.",
-    }
-    results["nsga_ii"] = nsga_best
+    add_pareto_comparison(results)
 
     return results, None
 
@@ -2089,7 +2079,7 @@ def create_procurement_plan():
     payload = request.get_json(silent=True) or {}
     project_id = payload.get("project_id")
     strategy = payload.get("strategy")
-    if not isinstance(project_id, int) or strategy not in {"cheapest", "fastest", "lowest_risk", "weighted_risk_cost", "nsga_ii"}:
+    if not isinstance(project_id, int) or strategy not in {"cheapest", "fastest", "lowest_risk", "weighted_risk_cost", "pareto_comparison", "nsga_ii"}:
         return error_response("project_id and a supported strategy are required.", 400)
 
     try:

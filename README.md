@@ -1,6 +1,9 @@
 
 # BuildConnect AI — Final ML/Data Package
 
+For an online preview of the Flask/React application and the automatic update
+workflow, see [Hosted preview deployment](documentation/deployment.md).
+
 Created:
 2026-10-08T13:04:06.808794
 
@@ -46,8 +49,8 @@ Final Recommendation
 - Cost optimization
 - Risk optimization
 - Delivery optimization
-- NSGA-II
-- Pareto analysis
+- Heuristic procurement strategies and Pareto comparison
+- Archived NSGA-II research artifacts (the live application does not run an NSGA-II search)
 
 ## IMPORTANT
 

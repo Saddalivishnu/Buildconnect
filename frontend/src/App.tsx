@@ -112,7 +112,7 @@ function AuthenticationPanel({ onAuthenticated }: { onAuthenticated: (user: ApiU
               <li><span className="auth-feature-dot" />Real WPI history & Conformal intervals</li>
               <li><span className="auth-feature-dot" />Supplier ratings & Provenance verification</li>
               <li><span className="auth-feature-dot" />Purchase order lifecycle & Delivery tracking</li>
-              <li><span className="auth-feature-dot" />Scenario simulation & NSGA-II Pareto optimization</li>
+              <li><span className="auth-feature-dot" />Scenario simulation & Pareto strategy comparison</li>
             </ul>
           </div>
           <p className="auth-aside-footer">Research-oriented decision support · Strict data provenance</p>

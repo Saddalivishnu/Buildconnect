@@ -399,3 +399,104 @@ def test_invalid_project_and_quantity_overallocation_are_rejected(client):
     )
     assert response.status_code == 400
     assert "deadline" in response.get_json()["error"]
+
+
+@pytest.mark.parametrize("strategy", ["pareto_comparison", "nsga_ii"])
+def test_pareto_comparison_and_legacy_alias_support_order_lifecycle(client, strategy):
+    contractor = register(client)
+    supplier = app.test_client()
+    supplier_auth = register(supplier, "supplier")
+    quote_response = supplier.post(
+        "/api/supplier-quotes",
+        headers=csrf(supplier_auth),
+        json={
+            "material": "Cement superfine",
+            "quote_price": 100,
+            "available_quantity": 20,
+            "delivery_days": 2,
+            "distance_km": 5,
+        },
+    )
+    assert quote_response.status_code == 201
+    quote_id = quote_response.get_json()["quote_id"]
+    project_response = client.post(
+        "/api/projects",
+        headers=csrf(contractor),
+        json={
+            "name": f"Pareto compatibility {uuid4().hex}",
+            "location": "Chennai",
+            "budget": 5000,
+            "start_date": date.today().isoformat(),
+            "deadline": (date.today() + timedelta(days=30)).isoformat(),
+            "materials": [
+                {
+                    "material": "Cement superfine",
+                    "required_quantity": 10,
+                    "current_inventory": 0,
+                    "ordered_quantity": 0,
+                    "unit_cost": 0,
+                },
+            ],
+        },
+    )
+    assert project_response.status_code == 201
+    project_id = project_response.get_json()["project_id"]
+
+    comparison_response = client.post(
+        "/api/procurement/optimize",
+        headers=csrf(contractor),
+        json={"project_id": project_id},
+    )
+    assert comparison_response.status_code == 200
+    comparison = comparison_response.get_json()
+    alternatives = comparison["alternatives"]
+    assert set(alternatives) == {
+        "cheapest", "lowest_risk", "fastest", "weighted_risk_cost",
+        "pareto_comparison", "nsga_ii",
+    }
+    assert comparison["pareto_comparison"]["available"] is True
+    assert comparison["nsga_ii"]["available"] is False
+    canonical = alternatives["pareto_comparison"]
+    assert canonical["strategy"] == "pareto_comparison"
+    assert "heuristic" in canonical["note"].lower()
+    assert canonical["pareto_synthesis"]
+    assert canonical["pareto_front_solutions"]
+    assert canonical["allocations"][0]["quote_id"] == quote_id
+    assert canonical["allocations"][0]["quantity"] == 10
+    legacy = alternatives["nsga_ii"]
+    assert legacy["strategy"] == "nsga_ii"
+    assert legacy["deprecated_alias_for"] == "pareto_comparison"
+    assert legacy["allocations"] == canonical["allocations"]
+    assert legacy["pareto_front_solutions"] == canonical["pareto_front_solutions"]
+
+    plan_response = client.post(
+        "/api/procurement/plans",
+        headers=csrf(contractor),
+        json={"project_id": project_id, "strategy": strategy},
+    )
+    assert plan_response.status_code == 201
+    plan = plan_response.get_json()
+    assert plan["selected_strategy"] == strategy
+    plan_id = plan["plan_id"]
+    assert client.post(
+        "/api/orders",
+        headers=csrf(contractor),
+        json={"plan_id": plan_id},
+    ).status_code == 409
+    approval_response = client.post(
+        f"/api/procurement/plans/{plan_id}/approve",
+        headers=csrf(contractor),
+        json={"decision": "approved"},
+    )
+    assert approval_response.status_code == 200
+    orders_response = client.post(
+        "/api/orders",
+        headers=csrf(contractor),
+        json={"plan_id": plan_id},
+    )
+    assert orders_response.status_code == 201
+    assert len(orders_response.get_json()["order_ids"]) == 1
+    orders = client.get("/api/orders").get_json()["orders"]
+    created_order = next(row for row in orders if row["id"] == orders_response.get_json()["order_ids"][0])
+    assert created_order["quote_id"] == quote_id
+    assert created_order["quantity"] == 10

@@ -34,15 +34,24 @@ interface PlanSummary {
   budget_compliant: boolean
   feasible: boolean
   pareto_rank?: number
+  note?: string
+  pareto_front_solutions?: {
+    strategy: string
+    total_estimated_cost: number
+    expected_late_delivery_risk: number | null
+    estimated_delivery_days?: number | null
+    expected_delivery_days?: number | null
+    shortage_quantity: number
+  }[]
 }
 
-type Strategy = 'cheapest' | 'lowest_risk' | 'fastest' | 'weighted_risk_cost' | 'nsga_ii'
+type Strategy = 'cheapest' | 'lowest_risk' | 'fastest' | 'weighted_risk_cost' | 'pareto_comparison'
 const strategies: { id: Strategy; label: string; desc: string }[] = [
   { id: 'cheapest', label: 'Cheapest Cost', desc: 'Minimizes total material & transport expenditure.' },
   { id: 'lowest_risk', label: 'Lowest Delivery Risk', desc: 'Prioritizes suppliers with lowest predicted delay probabilities.' },
   { id: 'fastest', label: 'Fastest Delivery', desc: 'Minimizes promised delivery turnaround days.' },
   { id: 'weighted_risk_cost', label: 'Balanced Risk/Cost', desc: 'Jointly balances unit price, logistics, and late delivery penalties.' },
-  { id: 'nsga_ii', label: 'NSGA-II Pareto Frontier', desc: 'Multi-objective non-dominated trade-off between cost, lead-time, and risk.' },
+  { id: 'pareto_comparison', label: 'Pareto Strategy Comparison', desc: 'Compares four heuristic candidates; uses the balanced risk/cost allocation by default.' },
 ]
 
 export function ProcurementPage() {
@@ -164,7 +173,7 @@ export function ProcurementPage() {
         <div>
           <h1 className="text-2xl font-bold">Procurement Optimization & Decision Engine</h1>
           <p className="mt-1 text-sm text-slate-400">
-            Compare 5 allocation strategies including NSGA-II Pareto trade-offs against live quotations, capacity, and deadlines.
+            Compare four allocation strategies and their Pareto trade-offs against live quotations, capacity, and deadlines.
           </p>
         </div>
         <div className="flex gap-2">
@@ -307,6 +316,44 @@ export function ProcurementPage() {
                   )}
                 </div>
               </div>
+
+              {selected === 'pareto_comparison' && (
+                <section className="space-y-3" aria-label="Pareto strategy comparison">
+                  <p className="text-sm text-slate-300">
+                    {activePlan.note || 'This comparison considers only four heuristic candidates. The allocation below uses balanced risk/cost; a global optimum is not guaranteed.'}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    Nondominated candidates have no other candidate that is at least as good on every objective and better on at least one.
+                  </p>
+                  {activePlan.pareto_front_solutions && activePlan.pareto_front_solutions.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[560px] text-left text-sm">
+                        <caption className="pb-2 text-left font-semibold text-slate-200">Nondominated candidates among the four strategies</caption>
+                        <thead className="text-slate-400">
+                          <tr>
+                            <th scope="col" className="py-2">Strategy</th>
+                            <th scope="col">Estimated cost</th>
+                            <th scope="col">Delay risk</th>
+                            <th scope="col">Lead time</th>
+                            <th scope="col">Shortage</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activePlan.pareto_front_solutions.map((point) => (
+                            <tr key={point.strategy} className="border-t border-slate-700/60">
+                              <td className="py-2">{strategies.find(s => s.id === point.strategy)?.label || point.strategy}</td>
+                              <td>₹{Math.round(point.total_estimated_cost).toLocaleString()}</td>
+                              <td>{point.expected_late_delivery_risk === null ? 'Unavailable' : `${(point.expected_late_delivery_risk * 100).toFixed(1)}%`}</td>
+                              <td>{point.estimated_delivery_days ?? point.expected_delivery_days ?? 'Unavailable'} days</td>
+                              <td>{point.shortage_quantity.toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </section>
+              )}
 
               {/* KPI Summary Cards */}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

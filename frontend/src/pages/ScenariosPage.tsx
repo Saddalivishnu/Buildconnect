@@ -33,6 +33,11 @@ interface SimulationResult {
   feasible: boolean
 }
 
+function strategyLabel(strategy: string) {
+  if (strategy === 'pareto_comparison' || strategy === 'nsga_ii') return 'Pareto strategy comparison'
+  return strategy.replace(/_/g, ' ')
+}
+
 export function ScenariosPage() {
   const { csrfToken } = useAuth()
   const [projects, setProjects] = useState<Project[]>([])
@@ -153,8 +158,11 @@ export function ScenariosPage() {
               <option value="lowest_risk">Lowest delivery risk</option>
               <option value="fastest">Fastest lead time</option>
               <option value="weighted_risk_cost">Weighted cost & risk compromise</option>
-              <option value="nsga_ii">NSGA-II Pareto multi-objective compromise</option>
+              <option value="pareto_comparison">Pareto comparison · balanced risk/cost allocation</option>
             </select>
+            {strategy === 'pareto_comparison' && (
+              <span className="text-[11px] text-slate-400">Compares four heuristic candidates and uses balanced risk/cost allocations. A global optimum is not guaranteed.</span>
+            )}
           </label>
 
           <label className="block text-sm">Transport tariff (₹ / km / unit)
@@ -184,7 +192,7 @@ export function ScenariosPage() {
           {simulation ? (
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-4">
-                {Object.entries(simulation).map(([key, res]) => (
+                {Object.entries(simulation).filter(([key]) => key !== 'nsga_ii').map(([key, res]) => (
                   <div
                     key={key}
                     onClick={() => setStrategy(key)}
@@ -194,7 +202,7 @@ export function ScenariosPage() {
                         : 'border-slate-700 bg-slate-800/40 hover:border-slate-600'
                     }`}
                   >
-                    <p className="text-xs font-semibold text-slate-400 capitalize">{key.replace('_', ' ')}</p>
+                    <p className="text-xs font-semibold text-slate-400 capitalize">{strategyLabel(key)}</p>
                     <p className="mt-1 text-base font-bold text-white">₹{res.total_estimated_cost.toLocaleString()}</p>
                     <p className="text-xs text-slate-400">Lead time: {res.expected_delivery_days ?? 'N/A'} days</p>
                     {res.shortage_quantity > 0 ? (
@@ -253,7 +261,7 @@ export function ScenariosPage() {
                   return (
                     <tr key={s.id}>
                       <td className="py-2.5 font-medium text-white">{s.scenario_name}</td>
-                      <td className="capitalize text-teal-300">{s.strategy}</td>
+                      <td className="capitalize text-teal-300">{strategyLabel(s.strategy)}</td>
                       <td className="text-xs text-slate-400 font-mono">
                         tariff: {String((s.scenario_inputs as any).transport_rate_coefficient || 0.02)}
                       </td>
