@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: buildconnect
+      POSTGRES_USER: buildconnect
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the root .env file}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U buildconnect -d buildconnect"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - PYTHONUNBUFFERED=1
+      - BUILDCONNECT_PROJECT_ROOT=/app
+      - BUILDCONNECT_SECRET_KEY=${BUILDCONNECT_SECRET_KEY:?Set BUILDCONNECT_SECRET_KEY in the root .env file}
+      - DATABASE_URL=postgresql+psycopg2://buildconnect:${POSTGRES_PASSWORD}@db:5432/buildconnect
+    volumes:
+      - ./backend:/app
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+      - ./models:/app/models
+    depends_on:
+      db:
+        condition: service_healthy
+    command: gunicorn --bind 0.0.0.0:5000 wsgi:app
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:5000
+      - VITE_PROXY_TARGET=http://backend:5000
+    volumes:
+      - ./frontend/src:/app/src
+    command: npm run dev
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

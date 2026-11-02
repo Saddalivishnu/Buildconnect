@@ -1,0 +1,36 @@
+{
+  "project": "BuildConnect AI",
+  "package_type": "Final ML and Data Research Package",
+  "created_at": "2026-10-08T13:04:06.807921",
+  "important_scientific_notes": [
+    "WPI is an index and should not be described as direct supplier price.",
+    "Supplier/order dataset is synthetic and should be labeled as a simulation/proof-of-concept.",
+    "Test data must not be used for model tuning.",
+    "Transport-rate and shortage-penalty values are experimental assumptions unless replaced by sourced real values.",
+    "Demand forecasting should not be claimed as empirically validated without real historical order data."
+  ],
+  "files_copied": 44,
+  "files_missing_from_expected_list": [
+    "BuildConnect_Construction_Materials_Final.csv",
+    "wpi_monthly_index_202609.xlsx",
+    "monthly_index_202606.xlsx",
+    "monthly_index_202606.xls",
+    "supplier_master.csv",
+    "synthetic_supplier_orders.csv",
+    "synthetic_orders.csv",
+    "supplier_risk_predictions.csv",
+    "supplier_test_risk.csv",
+    "supplier_material_candidates.csv",
+    "supplier_candidates.csv",
+    "supplier_risk_results.csv",
+    "opc_forecasting_results.csv",
+    "opc_model_comparison.csv",
+    "buy_wait_decisions.csv",
+    "buy_wait_material_summary.csv",
+    "procurement_results.csv",
+    "multi_material_procurement_results.csv",
+    "nsga_results.csv",
+    "procurement_candidates.csv",
+    "material_demand.csv"
+  ]
+}

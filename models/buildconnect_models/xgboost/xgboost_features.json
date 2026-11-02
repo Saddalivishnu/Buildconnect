@@ -1,0 +1,14 @@
+[
+    "wpi",
+    "wpi_lag_1",
+    "wpi_lag_3",
+    "wpi_lag_6",
+    "wpi_lag_12",
+    "wpi_roll_mean_3",
+    "wpi_roll_mean_6",
+    "wpi_roll_std_3",
+    "month",
+    "quarter",
+    "month_sin",
+    "month_cos"
+]

@@ -1,0 +1,22 @@
+{
+    "material": "Ordinary Portland cement",
+    "lookback": 12,
+    "features": [
+        "wpi",
+        "wpi_lag_1",
+        "wpi_lag_3",
+        "wpi_lag_6",
+        "wpi_lag_12",
+        "wpi_roll_mean_3",
+        "wpi_roll_mean_6",
+        "wpi_roll_std_3",
+        "month_sin",
+        "month_cos"
+    ],
+    "target": "next_month_wpi",
+    "model_type": "LSTM",
+    "input_shape": [
+        12,
+        10
+    ]
+}

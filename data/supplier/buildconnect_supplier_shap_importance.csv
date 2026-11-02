@@ -1,0 +1,27 @@
+feature,mean_abs_shap
+historical_delivery_success,0.26221234
+availability_ratio,0.20456427
+promised_delivery_days,0.19588415
+historical_avg_delay,0.17970309
+distance_km,0.16925718
+cancellation_rate,0.13023576
+response_time_hours,0.12532587
+supplier_rating,0.11354625
+monsoon,0.106119946
+verified_supplier,0.10445274
+price_competitiveness,0.05481754
+quoted_price,0.053958833
+market_price,0.043112677
+quantity,0.03999191
+month,0.036669716
+review_count,0.030571466
+material_Ceramic tiles,0.0076964027
+material_Ordinary Portland cement,0.005165821
+material_Steel structures,0.0038499504
+material_MS Wire Rods,0.0034491462
+material_Pozzolana cement,0.0029271746
+material_Steel pipes,0.00259257
+material_Bitumen,0.0021424852
+material_Cement blocks,0.0010972854
+material_Plain bricks,0.0008681987
+material_MS Bright Bars,0.0007010759
